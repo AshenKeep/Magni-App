@@ -37,11 +37,38 @@ jobs:
       - name: Build web app
         run: npm run build
 
+      - name: Add android platform
+        run: npx cap add android
+
       - name: Sync Capacitor
         run: npx cap sync android
 
       - name: Set minSdkVersion 26 for Health Connect
         run: sed -i 's/minSdkVersion = 23/minSdkVersion = 26/' android/variables.gradle
+
+      - name: Add network security config
+        run: |
+          mkdir -p android/app/src/main/res/xml
+          cat > android/app/src/main/res/xml/network_security_config.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <network-security-config>
+              <base-config cleartextTrafficPermitted="false">
+                  <trust-anchors>
+                      <certificates src="system"/>
+                      <certificates src="user"/>
+                  </trust-anchors>
+              </base-config>
+          </network-security-config>
+          EOF
+
+      - name: Patch AndroidManifest for network security config
+        run: |
+          sed -i 's/<application/<application android:networkSecurityConfig="@xml\/network_security_config"/' \
+            android/app/src/main/AndroidManifest.xml
+
+      - name: Get app version
+        id: version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
@@ -49,27 +76,36 @@ jobs:
       - name: Build debug APK
         run: cd android && ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK as artifact
+      - name: Rename APK
+        run: |
+          mv android/app/build/outputs/apk/debug/app-debug.apk \
+             android/app/build/outputs/apk/debug/magni_v${{ steps.version.outputs.VERSION }}.apk
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: magni-debug-${{ github.sha }}
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: magni_v${{ steps.version.outputs.VERSION }}
+          path: android/app/build/outputs/apk/debug/magni_v${{ steps.version.outputs.VERSION }}.apk
           retention-days: 30
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main'
         with:
-          tag_name: v${{ github.run_number }}
-          name: "Build ${{ github.run_number }}"
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: "Magni v${{ steps.version.outputs.VERSION }}"
           body: |
-            Auto-built from commit ${{ github.sha }}
+            ## Magni v${{ steps.version.outputs.VERSION }}
 
             **Install:**
-            1. Download `app-debug.apk` below
-            2. On your Android phone: Settings → Security → Install unknown apps → allow your browser
-            3. Open the downloaded APK and install
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+            1. Download `magni_v${{ steps.version.outputs.VERSION }}.apk` below
+            2. Settings → Security → Install unknown apps → allow browser
+            3. Open the APK and install
+
+            **Self-signed SSL fix (one time):**
+            Open your server URL in Chrome on your phone and accept the certificate warning — this lets Android trust it for the app too.
+
+            Built from ${{ github.sha }}
+          files: android/app/build/outputs/apk/debug/magni_v${{ steps.version.outputs.VERSION }}.apk
           draft: false
           prerelease: false
         env:

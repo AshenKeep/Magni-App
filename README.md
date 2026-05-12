@@ -3,16 +3,13 @@
 Mobile app for the [Magni fitness tracker](https://github.com/AshenKeep/Magni).
 Built with Capacitor + React + TypeScript.
 
-## Setup
+## Installing
 
-```bash
-npm install
-npm run build
-npx cap add android    # first time only
-npx cap sync android
-```
+Download the latest APK from the [Releases](../../releases) page and install it on your Android phone.
 
-Then open `android/` in Android Studio and build, or let GitHub Actions do it.
+**First time connecting to your server:**
+
+Your Magni server uses a self-signed SSL certificate. Open your server URL (`https://your-server:8443`) in Chrome on your phone and accept the certificate warning. Android will then trust it for the app.
 
 ## Architecture
 
@@ -23,6 +20,6 @@ Then open `android/` in Android Studio and build, or let GitHub Actions do it.
 - **Health Connect** — reads Garmin data (steps, HR, sleep, calories) from Android Health Connect
 - **GitHub Actions** — auto-builds APK on every push to `main`
 
-## Distribution
+## Releases
 
-Every push to `main` triggers a build. Download the APK from the [Releases](../../releases) page.
+Every push to `main` triggers an automatic build. The APK is published to the [Releases](../../releases) page as `magni_vX.X.X.apk`.
