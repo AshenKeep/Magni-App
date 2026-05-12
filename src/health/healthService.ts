@@ -13,11 +13,12 @@
  * - Exercise sessions (read)
  */
 
-import HealthConnect, {
-  type HealthConnectRecord,
-} from "@capacitor-community/health-connect";
+import { HealthConnect } from "@devmaxime/capacitor-health-connect";
 import { db } from "@/db";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const HC = HealthConnect as any;
 
 const PERMISSIONS = [
   { accessType: "read", recordType: "Steps" },
@@ -30,7 +31,7 @@ const PERMISSIONS = [
 /** Check if Health Connect is available on this device */
 export async function isHealthConnectAvailable(): Promise<boolean> {
   try {
-    const { result } = await HealthConnect.checkAvailability();
+    const { result } = await HC.checkAvailability();
     return result === "Available";
   } catch {
     return false;
@@ -40,8 +41,7 @@ export async function isHealthConnectAvailable(): Promise<boolean> {
 /** Request Health Connect permissions from the user */
 export async function requestPermissions(): Promise<boolean> {
   try {
-    const { grantedPermissions } = await HealthConnect.requestHealthPermissions({
-      // @ts-ignore — type mismatch in plugin types
+    const { grantedPermissions } = await HC.requestHealthPermissions({
       permissions: PERMISSIONS,
     });
     return grantedPermissions.length > 0;
@@ -71,7 +71,7 @@ export async function syncHealthData(days = 7): Promise<void> {
       // Steps
       let steps: number | null = null;
       try {
-        const stepsResult = await HealthConnect.readRecords({
+        const stepsResult = await HC.readRecords({
           type: "Steps",
           timeRangeFilter: { operator: "between", startTime: start, endTime: end },
         });
@@ -81,7 +81,7 @@ export async function syncHealthData(days = 7): Promise<void> {
       // Resting heart rate (average of samples)
       let restingHr: number | null = null;
       try {
-        const hrResult = await HealthConnect.readRecords({
+        const hrResult = await HC.readRecords({
           type: "HeartRate",
           timeRangeFilter: { operator: "between", startTime: start, endTime: end },
         });
@@ -95,7 +95,7 @@ export async function syncHealthData(days = 7): Promise<void> {
       // Active calories
       let activeCalories: number | null = null;
       try {
-        const calResult = await HealthConnect.readRecords({
+        const calResult = await HC.readRecords({
           type: "ActiveCaloriesBurned",
           timeRangeFilter: { operator: "between", startTime: start, endTime: end },
         });
@@ -106,7 +106,7 @@ export async function syncHealthData(days = 7): Promise<void> {
       // Sleep
       let sleepHours: number | null = null;
       try {
-        const sleepResult = await HealthConnect.readRecords({
+        const sleepResult = await HC.readRecords({
           type: "SleepSession",
           timeRangeFilter: { operator: "between", startTime: start, endTime: end },
         });

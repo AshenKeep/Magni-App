@@ -10,7 +10,7 @@
 
 import { Network } from "@capacitor/network";
 import { exercisesApi, templatesApi, workoutsApi, type ServerWorkout, type ServerTemplate, type ServerExercise } from "@/api/client";
-import { db, setSetting, getSetting } from "@/db";
+import { db } from "@/db";
 import { useAppStore } from "@/store/appStore";
 
 // ─── Network check ───────────────────────────────────────────────────────────

@@ -54,7 +54,7 @@ async function remove(key: string): Promise<void> {
   await Preferences.remove({ key });
 }
 
-export const useAppStore = create<AppState>((setState, getState) => ({
+export const useAppStore = create<AppState>((setState) => ({
   token: null, serverUrl: null, userId: null, userEmail: null, userName: null,
   isLoading: true, wifiOnly: true, lastFullSync: null, lastDeltaSync: null,
   isSyncing: false, syncError: null,
