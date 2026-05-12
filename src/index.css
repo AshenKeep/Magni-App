@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body, #root { height: 100%; margin: 0; padding: 0; }
+  body { font-family: Inter, system-ui, sans-serif; background: #0D0D0D; color: #F0F0F0; overscroll-behavior: none; }
+  /* Safe area for notch/nav bar */
+  #root { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+}
+
+@layer components {
+  .btn-primary { @apply bg-blue text-white font-semibold rounded-xl px-4 py-3 transition-opacity active:opacity-70 disabled:opacity-40; }
+  .btn-danger  { @apply bg-danger text-white font-semibold rounded-xl px-4 py-3 transition-opacity active:opacity-70; }
+  .card        { @apply bg-card border border-border rounded-xl; }
+  .input       { @apply bg-card border border-border rounded-xl px-4 py-3 text-primary w-full placeholder:text-secondary focus:outline-none focus:border-blue transition-colors; }
+  .label       { @apply text-secondary text-xs uppercase tracking-wider mb-1.5 block; }
+}
