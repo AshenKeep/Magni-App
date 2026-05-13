@@ -40,6 +40,9 @@ jobs:
       - name: Add android platform
         run: npx cap add android
 
+      - name: Generate app icons and splash screens
+        run: npx @capacitor/assets generate --android --pwa false
+
       - name: Sync Capacitor
         run: npx cap sync android
 
@@ -100,9 +103,6 @@ jobs:
             1. Download `magni_v${{ steps.version.outputs.VERSION }}.apk` below
             2. Settings → Security → Install unknown apps → allow browser
             3. Open the APK and install
-
-            **Self-signed SSL fix (one time):**
-            Open your server URL in Chrome on your phone and accept the certificate warning — this lets Android trust it for the app too.
 
             Built from ${{ github.sha }}
           files: android/app/build/outputs/apk/debug/magni_v${{ steps.version.outputs.VERSION }}.apk

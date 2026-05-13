@@ -8,6 +8,7 @@ import { LoginPage } from "@/components/screens/LoginPage";
 import { TabLayout } from "@/components/layout/TabLayout";
 import { DashboardPage } from "@/components/screens/DashboardPage";
 import { WorkoutsPage } from "@/components/screens/WorkoutsPage";
+import { WorkoutLoggerPage } from "@/components/screens/WorkoutLoggerPage";
 import { ExercisesPage } from "@/components/screens/ExercisesPage";
 import { TemplatesPage } from "@/components/screens/TemplatesPage";
 import { ActivityPage } from "@/components/screens/ActivityPage";
@@ -31,7 +32,6 @@ export function App() {
     (async () => {
       await hydrate();
       await SplashScreen.hide();
-      // Delta sync on app open
       deltaSync().catch(console.warn);
     })();
   }, []);
@@ -43,11 +43,12 @@ export function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<AuthGate />}>
             <Route index element={<DashboardPage />} />
-            <Route path="workouts"  element={<WorkoutsPage />} />
+            <Route path="workouts" element={<WorkoutsPage />} />
+            <Route path="workouts/:id" element={<WorkoutLoggerPage />} />
             <Route path="exercises" element={<ExercisesPage />} />
             <Route path="templates" element={<TemplatesPage />} />
-            <Route path="activity"  element={<ActivityPage />} />
-            <Route path="settings"  element={<SettingsPage />} />
+            <Route path="activity" element={<ActivityPage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
