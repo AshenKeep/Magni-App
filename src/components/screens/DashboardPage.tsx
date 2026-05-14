@@ -17,13 +17,13 @@ function StatCard({ label, value, accent = "blue" }: { label: string; value: str
 }
 
 export function DashboardPage() {
-  const { isSyncing, syncError, lastFullSync, userName } = useAppStore();
+  const { isSyncing, syncError, lastFullSync } = useAppStore();
   const { data: stats } = useQuery({ queryKey: ["dashboard"], queryFn: statsApi.dashboard });
   const todayHealth = useLiveQuery(() => db.healthDays.get(format(new Date(), "yyyy-MM-dd")));
   const fmtDur = (s?: number | null) => { if (!s) return "—"; const m = Math.round(s/60); return m >= 60 ? `${Math.floor(m/60)}h ${m%60}m` : `${m}m`; };
 
   return (
-    <div className="p-4 space-y-4" style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)" }}>
+    <div className="flex flex-col h-full" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       <PageHeader
         title="Dashboard"
         right={
@@ -33,16 +33,8 @@ export function DashboardPage() {
           </button>
         }
       />
-          <div>
-            <h1 className="text-primary font-bold">Dashboard</h1>
-            {userName && <p className="text-secondary text-xs">Hey, {userName}</p>}
-          </div>
-        </div>
-        <button onClick={() => fullSync(true)} disabled={isSyncing}
-          className="text-xs text-blue border border-blue/30 rounded-lg px-3 py-1.5 active:opacity-70">
-          {isSyncing ? "Syncing…" : "↻ Sync"}
-        </button>
-      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-4">
 
       {syncError && <div className="bg-danger/10 border border-danger/30 rounded-xl px-4 py-3 text-danger text-sm">{syncError}</div>}
 
@@ -71,6 +63,7 @@ export function DashboardPage() {
       {lastFullSync && (
         <p className="text-secondary text-xs text-center">Last sync {format(new Date(lastFullSync), "d MMM · HH:mm")}</p>
       )}
+      </div>
     </div>
   );
 }
