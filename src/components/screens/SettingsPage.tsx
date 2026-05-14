@@ -7,22 +7,24 @@ import { format } from "date-fns";
 import pkg from "../../../package.json";
 
 export function SettingsPage() {
-  const { userName, userEmail, serverUrl, clearAuth, wifiOnly, setWifiOnly, lastFullSync, lastDeltaSync, isSyncing } = useAppStore();
+  const {
+    userName, userEmail, serverUrl, clearAuth,
+    wifiOnly, setWifiOnly,
+    lastFullSync, lastDeltaSync,
+    isSyncing,
+  } = useAppStore();
+
   const [healthAvailable, setHealthAvailable] = useState(false);
   const [healthSyncing, setHealthSyncing] = useState(false);
 
-  useEffect(() => {
-    isHealthConnectAvailable().then(setHealthAvailable);
-  }, []);
+  useEffect(() => { isHealthConnectAvailable().then(setHealthAvailable); }, []);
 
   const handleHealthSync = async () => {
     setHealthSyncing(true);
     try {
       const granted = await requestPermissions();
       if (granted) await syncHealthData(14);
-    } finally {
-      setHealthSyncing(false);
-    }
+    } finally { setHealthSyncing(false); }
   };
 
   const fmtDate = (ts: string | null) =>
@@ -33,9 +35,10 @@ export function SettingsPage() {
       <PageHeader title="Settings" />
 
       <div className="flex-1 overflow-y-auto pb-8">
+
         {/* Account */}
         <p className="text-secondary text-xs uppercase tracking-wider px-4 mb-2">Account</p>
-        <div className="card mx-4 mb-5 divide-y divide-border/50 overflow-hidden">
+        <div className="mx-4 mb-5 border border-border rounded-xl bg-card divide-y divide-border/50">
           <div className="px-4 py-3">
             <p className="text-primary font-medium">{userName}</p>
             <p className="text-secondary text-sm">{userEmail}</p>
@@ -48,15 +51,16 @@ export function SettingsPage() {
 
         {/* Sync */}
         <p className="text-secondary text-xs uppercase tracking-wider px-4 mb-2">Sync</p>
-        <div className="card mx-4 mb-5 divide-y divide-border/50 overflow-hidden">
-          <div className="px-4 py-3 flex items-center justify-between">
-            <div>
+        <div className="mx-4 mb-5 border border-border rounded-xl bg-card divide-y divide-border/50">
+          {/* WiFi toggle row — no overflow hidden, explicit padding */}
+          <div className="px-4 pr-5 py-3 flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
               <p className="text-primary font-medium">WiFi only</p>
               <p className="text-secondary text-sm">Only sync on WiFi</p>
             </div>
             <button
               onClick={() => setWifiOnly(!wifiOnly)}
-              className={`w-12 h-6 rounded-full transition-colors relative ${wifiOnly ? "bg-blue" : "bg-muted"}`}
+              className={`shrink-0 w-12 h-6 rounded-full transition-colors relative ${wifiOnly ? "bg-blue" : "bg-muted"}`}
             >
               <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${wifiOnly ? "translate-x-6" : "translate-x-0.5"}`} />
             </button>
@@ -75,10 +79,10 @@ export function SettingsPage() {
         {healthAvailable && (
           <>
             <p className="text-secondary text-xs uppercase tracking-wider px-4 mb-2">Health Connect</p>
-            <div className="card mx-4 mb-5 px-4 py-3">
+            <div className="mx-4 mb-5 border border-border rounded-xl bg-card px-4 py-3">
               <p className="text-primary font-medium mb-1">Garmin data via Health Connect</p>
               <p className="text-secondary text-sm mb-3">
-                Steps, heart rate, sleep and calories — synced from your Garmin via Health Connect.
+                Steps, heart rate, sleep and calories from your Garmin via Health Connect.
               </p>
               <button
                 onClick={handleHealthSync}
