@@ -1,16 +1,16 @@
 /**
  * src/health/healthService.ts
+ * Reads health data from Android Health Connect via @devmaxime/capacitor-health-connect
  *
- * Reads health data from Android Health Connect.
- * Garmin Connect automatically writes steps, heart rate, sleep etc.
- * into Health Connect — we read from there, no Garmin API needed.
+ * Real API (confirmed from npm docs):
+ *   checkAvailability()                            → { availability: string }
+ *   requestPermissions({ read: [...], write: [] }) → PermissionsResponse
+ *   readRecords({ start, end, type })              → { records: any[] }
  *
- * Permissions requested:
- * - Steps (read)
- * - Heart rate (read)
- * - Sleep (read)
- * - Active calories burned (read)
- * - Exercise sessions (read)
+ * AndroidManifest.xml must include:
+ *   - <queries> block for com.google.android.apps.healthdata
+ *   - Intent filters for permission rationale
+ *   - <uses-permission> for each health data type
  */
 
 import { HealthConnect } from "@devmaxime/capacitor-health-connect";
@@ -20,38 +20,31 @@ import { format, subDays, startOfDay, endOfDay } from "date-fns";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const HC = HealthConnect as any;
 
-const PERMISSIONS = [
-  { accessType: "read", recordType: "Steps" },
-  { accessType: "read", recordType: "HeartRate" },
-  { accessType: "read", recordType: "SleepSession" },
-  { accessType: "read", recordType: "ActiveCaloriesBurned" },
-  { accessType: "read", recordType: "TotalCaloriesBurned" },
-] as const;
+const READ_TYPES = ["Steps", "HeartRate", "SleepSession", "ActiveCaloriesBurned"];
 
-/** Check if Health Connect is available on this device */
 export async function isHealthConnectAvailable(): Promise<boolean> {
   try {
-    const { result } = await HC.checkAvailability();
-    return result === "Available";
+    const { availability } = await HC.checkAvailability();
+    return availability === "Available";
   } catch {
     return false;
   }
 }
 
-/** Request Health Connect permissions from the user */
 export async function requestPermissions(): Promise<boolean> {
   try {
-    const { grantedPermissions } = await HC.requestHealthPermissions({
-      permissions: PERMISSIONS,
+    const result = await HC.requestPermissions({
+      read: READ_TYPES,
+      write: [],
     });
-    return grantedPermissions.length > 0;
+    // Plugin returns granted permissions — if any granted, consider success
+    return !!(result?.grantedPermissions?.length || result?.granted?.length);
   } catch (e) {
-    console.error("[Health] Permission request failed:", e);
+    console.error("[Health] requestPermissions failed:", e);
     return false;
   }
 }
 
-/** Read and store the last N days of health data */
 export async function syncHealthData(days = 7): Promise<void> {
   const available = await isHealthConnectAvailable();
   if (!available) {
@@ -67,72 +60,50 @@ export async function syncHealthData(days = 7): Promise<void> {
     const start = startOfDay(date).toISOString();
     const end = endOfDay(date).toISOString();
 
+    let steps: number | null = null;
+    let restingHr: number | null = null;
+    let activeCalories: number | null = null;
+    let sleepHours: number | null = null;
+
     try {
-      // Steps
-      let steps: number | null = null;
-      try {
-        const stepsResult = await HC.readRecords({
-          type: "Steps",
-          timeRangeFilter: { operator: "between", startTime: start, endTime: end },
-        });
-        steps = (stepsResult.records as any[]).reduce((sum: number, r: any) => sum + (r.count ?? 0), 0) || null;
-      } catch { /* permission not granted */ }
+      const r = await HC.readRecords({ type: "Steps", start, end });
+      steps = (r?.records ?? []).reduce((s: number, x: any) => s + (x.count ?? 0), 0) || null;
+    } catch { /* permission not granted */ }
 
-      // Resting heart rate (average of samples)
-      let restingHr: number | null = null;
-      try {
-        const hrResult = await HC.readRecords({
-          type: "HeartRate",
-          timeRangeFilter: { operator: "between", startTime: start, endTime: end },
-        });
-        const samples = (hrResult.records as any[]).flatMap((r: any) => r.samples ?? []);
-        if (samples.length > 0) {
-          const avg = samples.reduce((s: number, x: any) => s + x.beatsPerMinute, 0) / samples.length;
-          restingHr = Math.round(avg);
-        }
-      } catch { /* permission not granted */ }
+    try {
+      const r = await HC.readRecords({ type: "HeartRate", start, end });
+      const samples = (r?.records ?? []).flatMap((x: any) => x.samples ?? []);
+      if (samples.length > 0) {
+        restingHr = Math.round(samples.reduce((s: number, x: any) => s + (x.beatsPerMinute ?? x.bpm ?? 0), 0) / samples.length);
+      }
+    } catch { /* permission not granted */ }
 
-      // Active calories
-      let activeCalories: number | null = null;
-      try {
-        const calResult = await HC.readRecords({
-          type: "ActiveCaloriesBurned",
-          timeRangeFilter: { operator: "between", startTime: start, endTime: end },
-        });
-        const total = (calResult.records as any[]).reduce((s: number, r: any) => s + (r.energy?.inKilocalories ?? 0), 0);
-        if (total > 0) activeCalories = Math.round(total);
-      } catch { /* permission not granted */ }
+    try {
+      const r = await HC.readRecords({ type: "ActiveCaloriesBurned", start, end });
+      const total = (r?.records ?? []).reduce((s: number, x: any) => s + (x.energy?.inKilocalories ?? x.kilocalories ?? 0), 0);
+      if (total > 0) activeCalories = Math.round(total);
+    } catch { /* permission not granted */ }
 
-      // Sleep
-      let sleepHours: number | null = null;
-      try {
-        const sleepResult = await HC.readRecords({
-          type: "SleepSession",
-          timeRangeFilter: { operator: "between", startTime: start, endTime: end },
-        });
-        const totalMs = (sleepResult.records as any[]).reduce((s: number, r: any) => {
-          const ms = new Date(r.endTime).getTime() - new Date(r.startTime).getTime();
-          return s + ms;
-        }, 0);
-        if (totalMs > 0) sleepHours = Math.round((totalMs / 3600000) * 10) / 10;
-      } catch { /* permission not granted */ }
+    try {
+      const r = await HC.readRecords({ type: "SleepSession", start, end });
+      const totalMs = (r?.records ?? []).reduce((s: number, x: any) => {
+        const ms = new Date(x.endTime).getTime() - new Date(x.startTime).getTime();
+        return s + ms;
+      }, 0);
+      if (totalMs > 0) sleepHours = Math.round((totalMs / 3600000) * 10) / 10;
+    } catch { /* permission not granted */ }
 
-      // Save to local DB
-      await db.healthDays.put({
-        date: dateStr,
-        steps,
-        activeCalories,
-        restingHr,
-        sleepHours,
-        activeMinutes: null,   // derive from exercise sessions if needed
-        source: "health_connect",
-        syncedAt: new Date().toISOString(),
-      });
-
-    } catch (e) {
-      console.warn(`[Health] Failed to read data for ${dateStr}:`, e);
-    }
+    await db.healthDays.put({
+      date: dateStr,
+      steps,
+      activeCalories,
+      restingHr,
+      sleepHours,
+      activeMinutes: null,
+      source: "health_connect",
+      syncedAt: new Date().toISOString(),
+    });
   }
 
-  console.log(`[Health] Synced ${days} days of Health Connect data`);
+  console.log(`[Health] Synced ${days} days from Health Connect`);
 }
