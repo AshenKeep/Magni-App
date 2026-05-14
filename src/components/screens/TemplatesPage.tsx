@@ -5,6 +5,7 @@ import { db, type Template, type TemplateExercise, type TemplateSet } from "@/db
 import { templatesApi } from "@/api/client";
 import { fullSync } from "@/sync/syncService";
 import { useAppStore } from "@/store/appStore";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -220,17 +221,15 @@ export function TemplatesPage() {
       className="flex flex-col h-full"
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-4 shrink-0">
-        <h1 className="text-primary text-xl font-bold">Templates</h1>
-        <button
-          onClick={() => fullSync(true)}
-          disabled={isSyncing}
-          className="text-xs text-blue border border-blue/30 rounded-lg px-3 py-1.5 active:opacity-70"
-        >
-          {isSyncing ? "Syncing…" : "↻"}
-        </button>
-      </div>
+      <PageHeader
+        title="Templates"
+        right={
+          <button onClick={() => fullSync(true)} disabled={isSyncing}
+            className="text-xs text-blue border border-blue/30 rounded-lg px-3 py-1.5 active:opacity-70">
+            {isSyncing ? "Syncing…" : "↻"}
+          </button>
+        }
+      />
 
       {/* Error */}
       {error && (

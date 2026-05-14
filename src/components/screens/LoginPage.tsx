@@ -15,11 +15,22 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Normalise URL — strip trailing slash, auto-add https://
+  function normaliseUrl(raw: string): string {
+    let url = raw.trim().replace(/\/$/, "");
+    if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+    return url;
+  }
+
   useEffect(() => {
-    if (!serverUrl.startsWith("http")) { setMode("loading"); return; }
+    const trimmed = serverUrl.trim();
+    if (!trimmed) { setMode("loading"); return; }
     const t = setTimeout(async () => {
       try {
-        useAppStore.setState({ serverUrl: serverUrl.replace(/\/$/, "") });
+        const normalised = normaliseUrl(trimmed);
+        useAppStore.setState({ serverUrl: normalised });
         const { required } = await authApi.setupRequired();
         setMode(required ? "setup" : "login");
         setError("");
@@ -35,13 +46,13 @@ export function LoginPage() {
     if (busy) return;
     setError(""); setBusy(true);
     try {
-      useAppStore.setState({ serverUrl: serverUrl.replace(/\/$/, "") });
+      useAppStore.setState({ serverUrl: normaliseUrl(serverUrl) });
       const res = mode === "setup"
         ? await authApi.setup(email, password, displayName)
         : await authApi.login(email, password);
       useAppStore.setState({ token: res.access_token });
       const user = await authApi.me();
-      await setAuth(res.access_token, serverUrl.replace(/\/$/, ""), user);
+      await setAuth(res.access_token, normaliseUrl(serverUrl), user);
       fullSync(true).catch(console.warn);
       navigate("/", { replace: true });
     } catch (e) {
@@ -70,7 +81,7 @@ export function LoginPage() {
           <div>
             <label className="label">Server URL</label>
             <input type="url" value={serverUrl} onChange={e => setServerUrl(e.target.value)}
-              className="input" placeholder="https://your-server:8443" autoCapitalize="none" autoCorrect="off" />
+              className="input" placeholder="your-server.com or your-server:8443" autoCapitalize="none" autoCorrect="off" />
           </div>
 
           {mode === "loading" && serverUrl.startsWith("http") && (

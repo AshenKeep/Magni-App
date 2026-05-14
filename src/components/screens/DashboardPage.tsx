@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { statsApi } from "@/api/client";
 import { useAppStore } from "@/store/appStore";
 import { fullSync } from "@/sync/syncService";
@@ -23,11 +24,15 @@ export function DashboardPage() {
 
   return (
     <div className="p-4 space-y-4" style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)" }}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">M</span>
-          </div>
+      <PageHeader
+        title="Dashboard"
+        right={
+          <button onClick={() => fullSync(true)} disabled={isSyncing}
+            className="text-xs text-blue border border-blue/30 rounded-lg px-3 py-1.5 active:opacity-70">
+            {isSyncing ? "Syncing…" : "↻ Sync"}
+          </button>
+        }
+      />
           <div>
             <h1 className="text-primary font-bold">Dashboard</h1>
             {userName && <p className="text-secondary text-xs">Hey, {userName}</p>}

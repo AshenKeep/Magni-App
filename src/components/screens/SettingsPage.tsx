@@ -1,4 +1,5 @@
 import { useAppStore } from "@/store/appStore";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { fullSync } from "@/sync/syncService";
 import { syncHealthData, requestPermissions, isHealthConnectAvailable } from "@/health/healthService";
 import { useState, useEffect } from "react";
@@ -73,7 +74,7 @@ export function SettingsPage() {
         </button>
       </div>
 
-      <p className="text-secondary text-xs text-center pb-4">Magni v0.0.1</p>
+      <p className="text-secondary text-xs text-center pb-4">Magni v0.0.3</p>
     </div>
   );
 }
