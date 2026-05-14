@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useNavigate } from "react-router-dom";
 import { db, type Workout } from "@/db";
-import { templatesApi } from "@/api/client";
+import { templatesApi, workoutsApi } from "@/api/client";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { fullSync } from "@/sync/syncService";
 import { useAppStore } from "@/store/appStore";
@@ -33,10 +33,8 @@ function WorkoutChip({ workout, compact, onClick }: {
 }) {
   const dur = fmtDuration(workout.durationSeconds);
   return (
-    <button
-      onClick={e => { e.stopPropagation(); onClick(); }}
-      className="w-full text-left bg-blue/80 rounded px-1.5 py-0.5 mb-0.5 active:opacity-70"
-    >
+    <button onClick={e => { e.stopPropagation(); onClick(); }}
+      className="w-full text-left bg-blue/80 rounded px-1.5 py-0.5 mb-0.5 active:opacity-70">
       <p className="text-white text-[10px] leading-tight truncate font-medium">
         {workout.title || "Workout"}{!compact && dur ? ` · ${dur}` : ""}
       </p>
@@ -44,50 +42,117 @@ function WorkoutChip({ workout, compact, onClick }: {
   );
 }
 
-// ─── Add to day sheet ─────────────────────────────────────────────────────────
+// ─── Day panel (slides in on day tap — matches web app) ───────────────────────
 
-function AddToDaySheet({ day, onClose, onStarted }: {
-  day: Date; onClose: () => void; onStarted: (id: string) => void;
+function DayPanel({ day, workouts, onClose, onWorkoutClick, onAddTemplate, onStartBlank }: {
+  day: Date;
+  workouts: Workout[];
+  onClose: () => void;
+  onWorkoutClick: (id: string) => void;
+  onAddTemplate: () => void;
+  onStartBlank: () => void;
 }) {
-  const [adding, setAdding] = useState<string | null>(null);
-  const templates = useLiveQuery(() => db.templates.orderBy("name").toArray(), []);
-
-  async function handleStart(templateId: string) {
-    setAdding(templateId);
-    try {
-      const { workout_id } = await templatesApi.start(templateId);
-      await db.workouts.update(workout_id, { startedAt: day.toISOString(), dirty: true });
-      onStarted(workout_id);
-    } catch (e) {
-      console.error("Failed to start template:", e);
-    } finally { setAdding(null); }
-  }
+  const dayWorkouts = workoutsForDay(workouts, day);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full bg-card border-t border-border rounded-t-2xl max-h-[70vh] flex flex-col">
-        <div className="px-5 py-4 border-b border-border shrink-0">
-          <p className="text-primary font-bold">{format(day, "EEEE d MMMM")}</p>
-          <p className="text-secondary text-sm">Start a workout from a template</p>
+      <div className="relative w-full bg-card border-t border-border rounded-t-2xl max-h-[75vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <p className="text-primary font-bold text-base">{format(day, "EEEE d MMMM")}</p>
+          <button onClick={onClose} className="text-secondary text-xl w-8 h-8 flex items-center justify-center active:opacity-70">×</button>
         </div>
-        <div className="overflow-y-auto flex-1 p-4 space-y-2">
-          {!templates || templates.length === 0 ? (
-            <p className="text-secondary text-sm text-center py-8">No templates — create them on the web app first</p>
+
+        {/* Workout list for this day */}
+        <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2">
+          {dayWorkouts.length === 0 ? (
+            <p className="text-secondary text-sm py-2">No workouts scheduled for this day.</p>
           ) : (
-            templates.map(t => (
-              <button key={t.id} onClick={() => handleStart(t.id)} disabled={!!adding}
-                className="w-full card px-4 py-3.5 flex items-center justify-between text-left active:opacity-70 disabled:opacity-50">
-                <p className="text-primary font-medium">{t.name}</p>
-                <span className={adding === t.id ? "text-secondary text-sm" : "text-blue text-sm"}>
-                  {adding === t.id ? "Starting…" : "▶ Start"}
-                </span>
+            dayWorkouts.map(w => (
+              <button key={w.id} onClick={() => onWorkoutClick(w.id)}
+                className="w-full card px-4 py-3 flex items-center justify-between text-left active:opacity-70">
+                <div>
+                  <p className="text-primary font-medium">{w.title || "Workout"}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${w.endedAt ? "bg-success" : "bg-warning"}`} />
+                    <p className="text-secondary text-sm">
+                      {w.endedAt ? (fmtDuration(w.durationSeconds) ?? "Complete") : "In progress"}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-secondary text-lg">›</span>
               </button>
             ))
           )}
         </div>
-        <div className="p-4 border-t border-border shrink-0">
-          <button onClick={onClose} className="w-full py-3 text-secondary text-sm active:opacity-70">Cancel</button>
+
+        {/* Actions */}
+        <div className="px-5 py-4 border-t border-border shrink-0 space-y-2"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}>
+          <button onClick={onAddTemplate}
+            className="btn-primary w-full py-3.5 flex items-center justify-center gap-2">
+            <span>📋</span> Add template to this day
+          </button>
+          <button onClick={onStartBlank}
+            className="w-full border border-border rounded-xl py-3.5 text-primary font-semibold flex items-center justify-center gap-2 active:opacity-70">
+            <span>▶</span> Start blank workout now
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Template picker modal ────────────────────────────────────────────────────
+
+function TemplatePickerModal({ day, onClose, onScheduled }: {
+  day: Date;
+  onClose: () => void;
+  onScheduled: () => void;
+}) {
+  const [scheduling, setScheduling] = useState<string | null>(null);
+  const templates = useLiveQuery(() => db.templates.orderBy("name").toArray(), []);
+
+  async function handleSchedule(templateId: string) {
+    setScheduling(templateId);
+    try {
+      const { workout_id } = await templatesApi.start(templateId);
+      // Set the workout to the selected day (plan ahead)
+      const plannedStart = new Date(day);
+      plannedStart.setHours(9, 0, 0, 0); // Default 9am
+      await db.workouts.update(workout_id, { startedAt: plannedStart.toISOString(), dirty: true });
+      onScheduled();
+    } catch (e) {
+      console.error("Failed to schedule template:", e);
+    } finally { setScheduling(null); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-card border border-border rounded-2xl max-h-[70vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <p className="text-primary font-bold">Add template — {format(day, "d MMM")}</p>
+          <button onClick={onClose} className="text-secondary text-xl w-8 h-8 flex items-center justify-center">×</button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-4 space-y-2">
+          {!templates || templates.length === 0 ? (
+            <p className="text-secondary text-sm text-center py-8">No templates yet — create them on the web app first</p>
+          ) : (
+            templates.map(t => (
+              <div key={t.id} className="card px-4 py-4">
+                <p className="text-primary font-semibold">{t.name}</p>
+                <button
+                  onClick={() => handleSchedule(t.id)}
+                  disabled={!!scheduling}
+                  className="mt-3 w-full btn-primary py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {scheduling === t.id ? "Scheduling…" : "📋 Schedule"}
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
@@ -98,7 +163,7 @@ function AddToDaySheet({ day, onClose, onStarted }: {
 
 function MonthView({ current, workouts, onDayTap, onWorkoutClick }: {
   current: Date; workouts: Workout[];
-  onDayTap: (day: Date, hasWorkouts: boolean) => void;
+  onDayTap: (day: Date) => void;
   onWorkoutClick: (id: string) => void;
 }) {
   const days = eachDayOfInterval({
@@ -120,7 +185,7 @@ function MonthView({ current, workouts, onDayTap, onWorkoutClick }: {
           const inMonth = isSameMonth(day, current);
           const today = isToday(day);
           return (
-            <button key={day.toISOString()} onClick={() => onDayTap(day, dayWorkouts.length > 0)}
+            <button key={day.toISOString()} onClick={() => onDayTap(day)}
               className={`flex flex-col rounded-lg p-1 text-left min-h-[60px] transition-colors active:opacity-70
                 ${today ? "border border-blue" : "border border-transparent"}
                 ${inMonth ? "bg-card" : "bg-card/40"}`}>
@@ -131,9 +196,6 @@ function MonthView({ current, workouts, onDayTap, onWorkoutClick }: {
                 <WorkoutChip key={w.id} workout={w} compact onClick={() => onWorkoutClick(w.id)} />
               ))}
               {dayWorkouts.length > 2 && <span className="text-[9px] text-secondary">+{dayWorkouts.length - 2}</span>}
-              {dayWorkouts.length === 0 && inMonth && (
-                <span className="text-[10px] text-secondary/40 mt-auto">+</span>
-              )}
             </button>
           );
         })}
@@ -146,7 +208,7 @@ function MonthView({ current, workouts, onDayTap, onWorkoutClick }: {
 
 function WeekView({ current, workouts, onDayTap, onWorkoutClick }: {
   current: Date; workouts: Workout[];
-  onDayTap: (day: Date, hasWorkouts: boolean) => void;
+  onDayTap: (day: Date) => void;
   onWorkoutClick: (id: string) => void;
 }) {
   const days = eachDayOfInterval({
@@ -161,8 +223,8 @@ function WeekView({ current, workouts, onDayTap, onWorkoutClick }: {
           const dayWorkouts = workoutsForDay(workouts, day);
           const today = isToday(day);
           return (
-            <button key={day.toISOString()} onClick={() => onDayTap(day, dayWorkouts.length > 0)}
-              className={`flex flex-col rounded-lg p-1.5 text-left min-h-[120px] bg-card active:opacity-70
+            <button key={day.toISOString()} onClick={() => onDayTap(day)}
+              className={`flex flex-col rounded-lg p-1.5 text-left bg-card active:opacity-70
                 ${today ? "border border-blue" : "border border-transparent"}`}>
               <div className="text-center mb-2">
                 <p className="text-secondary text-[10px] uppercase">{format(day, "EEE")}</p>
@@ -171,7 +233,6 @@ function WeekView({ current, workouts, onDayTap, onWorkoutClick }: {
               {dayWorkouts.map(w => (
                 <WorkoutChip key={w.id} workout={w} onClick={() => onWorkoutClick(w.id)} />
               ))}
-              {dayWorkouts.length === 0 && <span className="text-xs text-secondary/40 mt-auto mx-auto">+</span>}
             </button>
           );
         })}
@@ -180,11 +241,11 @@ function WeekView({ current, workouts, onDayTap, onWorkoutClick }: {
   );
 }
 
-// ─── Day view ─────────────────────────────────────────────────────────────────
+// ─── Day list view ────────────────────────────────────────────────────────────
 
-function DayView({ current, workouts, onAddTemplate, onWorkoutClick }: {
+function DayListView({ current, workouts, onDayTap, onWorkoutClick }: {
   current: Date; workouts: Workout[];
-  onAddTemplate: () => void;
+  onDayTap: (day: Date) => void;
   onWorkoutClick: (id: string) => void;
 }) {
   const dayWorkouts = workoutsForDay(workouts, current);
@@ -192,12 +253,12 @@ function DayView({ current, workouts, onAddTemplate, onWorkoutClick }: {
     <div className="flex-1 overflow-y-auto px-4 pb-4">
       <div className="flex items-center justify-between py-3">
         <p className="text-secondary text-sm">{format(current, "EEEE d MMMM yyyy")}</p>
-        <button onClick={onAddTemplate} className="text-blue text-sm font-medium active:opacity-70">+ Add</button>
+        <button onClick={() => onDayTap(current)} className="text-blue text-sm font-medium active:opacity-70">+ Add</button>
       </div>
       {dayWorkouts.length === 0 ? (
         <div className="text-center py-10">
           <p className="text-secondary text-sm">No workouts this day</p>
-          <button onClick={onAddTemplate} className="btn-primary mt-4 px-6 text-sm">+ Start from template</button>
+          <button onClick={() => onDayTap(current)} className="btn-primary mt-4 px-6 text-sm">+ Add workout</button>
         </div>
       ) : (
         <div className="space-y-2">
@@ -208,13 +269,13 @@ function DayView({ current, workouts, onAddTemplate, onWorkoutClick }: {
                 <p className="text-primary font-medium">{w.title || "Workout"}</p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className={`w-1.5 h-1.5 rounded-full ${w.endedAt ? "bg-success" : "bg-warning"}`} />
-                  <p className="text-secondary text-sm">{w.endedAt ? fmtDuration(w.durationSeconds) ?? "Complete" : "In progress"}</p>
+                  <p className="text-secondary text-sm">{w.endedAt ? (fmtDuration(w.durationSeconds) ?? "Complete") : "In progress"}</p>
                 </div>
               </div>
               <span className="text-secondary text-lg">›</span>
             </button>
           ))}
-          <button onClick={onAddTemplate} className="w-full card px-4 py-3 text-blue text-sm font-medium text-center active:opacity-70">
+          <button onClick={() => onDayTap(current)} className="w-full card px-4 py-3 text-blue text-sm font-medium text-center active:opacity-70">
             + Add another
           </button>
         </div>
@@ -230,7 +291,8 @@ export function WorkoutsPage() {
   const { isSyncing } = useAppStore();
   const [view, setView] = useState<View>("month");
   const [current, setCurrent] = useState(new Date());
-  const [addingToDay, setAddingToDay] = useState<Date | null>(null);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
 
   const workouts = useLiveQuery(() => db.workouts.orderBy("startedAt").toArray(), []) ?? [];
 
@@ -256,24 +318,32 @@ export function WorkoutsPage() {
     return format(current, "d MMM yyyy");
   }
 
-  function handleDayTap(day: Date, hasWorkouts: boolean) {
-    if (view === "month") {
-      setCurrent(day);
-      if (hasWorkouts) setView("day");
-      else setAddingToDay(day);
-    } else if (view === "week") {
-      setCurrent(day);
-      setView("day");
-    }
+  function handleDayTap(day: Date) {
+    setCurrent(day);
+    setSelectedDay(day);
   }
 
   function handleWorkoutClick(id: string) {
     navigate(`/workouts/${id}`);
   }
 
-  function handleTemplateStarted(workoutId: string) {
-    setAddingToDay(null);
-    navigate(`/workouts/${workoutId}`);
+  async function handleStartBlank() {
+    if (!selectedDay) return;
+    try {
+      const w = await workoutsApi.create({
+        title: `Workout ${format(selectedDay, "d MMM")}`,
+        started_at: selectedDay.toISOString(),
+      });
+      await db.workouts.put({
+        id: w.id, title: w.title, startedAt: w.started_at,
+        endedAt: null, durationSeconds: null, notes: null,
+        isLocal: false, dirty: false, syncedAt: new Date().toISOString(),
+      });
+      setSelectedDay(null);
+      navigate(`/workouts/${w.id}`);
+    } catch (e) {
+      console.error("Failed to create blank workout:", e);
+    }
   }
 
   return (
@@ -305,25 +375,28 @@ export function WorkoutsPage() {
         </button>
       </div>
 
-      {view === "month" && (
-        <MonthView current={current} workouts={workouts}
-          onDayTap={handleDayTap} onWorkoutClick={handleWorkoutClick} />
-      )}
-      {view === "week" && (
-        <WeekView current={current} workouts={workouts}
-          onDayTap={handleDayTap} onWorkoutClick={handleWorkoutClick} />
-      )}
-      {view === "day" && (
-        <DayView current={current} workouts={workouts}
-          onAddTemplate={() => setAddingToDay(current)}
-          onWorkoutClick={handleWorkoutClick} />
+      {view === "month" && <MonthView current={current} workouts={workouts} onDayTap={handleDayTap} onWorkoutClick={handleWorkoutClick} />}
+      {view === "week"  && <WeekView  current={current} workouts={workouts} onDayTap={handleDayTap} onWorkoutClick={handleWorkoutClick} />}
+      {view === "day"   && <DayListView current={current} workouts={workouts} onDayTap={handleDayTap} onWorkoutClick={handleWorkoutClick} />}
+
+      {/* Day panel */}
+      {selectedDay && !showTemplatePicker && (
+        <DayPanel
+          day={selectedDay}
+          workouts={workouts}
+          onClose={() => setSelectedDay(null)}
+          onWorkoutClick={id => { setSelectedDay(null); handleWorkoutClick(id); }}
+          onAddTemplate={() => setShowTemplatePicker(true)}
+          onStartBlank={handleStartBlank}
+        />
       )}
 
-      {addingToDay && (
-        <AddToDaySheet
-          day={addingToDay}
-          onClose={() => setAddingToDay(null)}
-          onStarted={handleTemplateStarted}
+      {/* Template picker */}
+      {selectedDay && showTemplatePicker && (
+        <TemplatePickerModal
+          day={selectedDay}
+          onClose={() => { setShowTemplatePicker(false); setSelectedDay(null); }}
+          onScheduled={() => { setShowTemplatePicker(false); setSelectedDay(null); fullSync(true); }}
         />
       )}
     </div>
