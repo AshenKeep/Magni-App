@@ -7,30 +7,22 @@ import { fullSync } from "@/sync/syncService";
 import { useAppStore } from "@/store/appStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
 interface TemplateWithExercises extends Template {
   exercises: Array<TemplateExercise & { sets: TemplateSet[]; exerciseName: string }>;
 }
 
-// ─── Template card ────────────────────────────────────────────────────────────
-
 function TemplateCard({
-  template,
-  onStart,
-  onExpand,
-  expanded,
+  template, expanded, onExpand, onStart,
 }: {
   template: TemplateWithExercises;
-  onStart: () => void;
-  onExpand: () => void;
   expanded: boolean;
+  onExpand: () => void;
+  onStart: () => void;
 }) {
   const totalSets = template.exercises.reduce((s, e) => s + e.sets.length, 0);
 
   return (
     <div className="card overflow-hidden">
-      {/* Header */}
       <button
         onClick={onExpand}
         className="w-full text-left px-4 py-4 flex items-start justify-between gap-3 active:bg-muted/30 transition-colors"
@@ -52,7 +44,6 @@ function TemplateCard({
         <span className="text-secondary text-lg mt-0.5">{expanded ? "▲" : "▼"}</span>
       </button>
 
-      {/* Exercise list — shown when expanded */}
       {expanded && (
         <div className="border-t border-border/50">
           {template.exercises.length === 0 ? (
@@ -69,13 +60,13 @@ function TemplateCard({
                     </div>
                     <div className="text-right shrink-0 ml-3">
                       <p className="text-blue text-sm font-semibold">{ex.sets.length} sets</p>
-                      {ex.sets[0]?.targetReps && (
+                      {ex.sets[0]?.targetReps != null && (
                         <p className="text-secondary text-xs">
                           {ex.sets[0].targetReps} reps
                           {ex.sets[0].targetWeightKg ? ` · ${ex.sets[0].targetWeightKg}kg` : ""}
                         </p>
                       )}
-                      {ex.sets[0]?.targetDurationSeconds && (
+                      {ex.sets[0]?.targetDurationSeconds != null && (
                         <p className="text-secondary text-xs">
                           {Math.round(ex.sets[0].targetDurationSeconds / 60)}min
                         </p>
@@ -88,11 +79,10 @@ function TemplateCard({
         </div>
       )}
 
-      {/* Actions */}
-      <div className="border-t border-border/50 flex">
+      <div className="border-t border-border/50">
         <button
           onClick={onStart}
-          className="flex-1 bg-blue text-white font-semibold py-3.5 text-sm flex items-center justify-center gap-2 active:opacity-70 transition-opacity"
+          className="w-full bg-blue text-white font-semibold py-3.5 text-sm flex items-center justify-center gap-2 active:opacity-70 transition-opacity"
         >
           <span>▶</span> Start workout
         </button>
@@ -101,19 +91,16 @@ function TemplateCard({
   );
 }
 
-// ─── Start confirmation sheet ─────────────────────────────────────────────────
-
 function StartSheet({
-  template,
-  onConfirm,
-  onCancel,
-  loading,
+  template, loading, onConfirm, onCancel,
 }: {
   template: TemplateWithExercises;
+  loading: boolean;
   onConfirm: () => void;
   onCancel: () => void;
-  loading: boolean;
 }) {
+  const totalSets = template.exercises.reduce((s, e) => s + e.sets.length, 0);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end">
       <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
@@ -121,11 +108,10 @@ function StartSheet({
         <div>
           <h2 className="text-primary text-lg font-bold">{template.name}</h2>
           <p className="text-secondary text-sm mt-1">
-            {template.exercises.length} exercises · {template.exercises.reduce((s, e) => s + e.sets.length, 0)} sets
+            {template.exercises.length} exercises · {totalSets} sets
           </p>
         </div>
 
-        {/* Exercise summary */}
         <div className="space-y-2 max-h-48 overflow-y-auto">
           {template.exercises
             .sort((a, b) => a.order - b.order)
@@ -145,10 +131,7 @@ function StartSheet({
           >
             {loading ? "Starting…" : "▶  Start workout"}
           </button>
-          <button
-            onClick={onCancel}
-            className="w-full py-3.5 text-secondary text-sm active:opacity-70"
-          >
+          <button onClick={onCancel} className="w-full py-3.5 text-secondary text-sm active:opacity-70">
             Cancel
           </button>
         </div>
@@ -156,8 +139,6 @@ function StartSheet({
     </div>
   );
 }
-
-// ─── Main page ────────────────────────────────────────────────────────────────
 
 export function TemplatesPage() {
   const navigate = useNavigate();
@@ -167,37 +148,25 @@ export function TemplatesPage() {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load templates with their exercises and sets from local DB
   const templates = useLiveQuery(async () => {
     const tmps = await db.templates.orderBy("name").toArray();
     const result: TemplateWithExercises[] = [];
 
     for (const t of tmps) {
-      const exercises = await db.templateExercises
-        .where("templateId")
-        .equals(t.id)
-        .toArray();
+      const exercises = await db.templateExercises.where("templateId").equals(t.id).toArray();
 
-      const withSetsAndNames = await Promise.all(
+      const withDetails = await Promise.all(
         exercises.map(async ex => {
           const sets = await db.templateSets
-            .where("templateExerciseId")
-            .equals(ex.id)
+            .where("templateExerciseId").equals(ex.id)
             .sortBy("setNumber");
-
           const exercise = await db.exercises.get(ex.exerciseId);
-
-          return {
-            ...ex,
-            sets,
-            exerciseName: exercise?.name ?? "Unknown exercise",
-          };
+          return { ...ex, sets, exerciseName: exercise?.name ?? "Unknown exercise" };
         })
       );
 
-      result.push({ ...t, exercises: withSetsAndNames });
+      result.push({ ...t, exercises: withDetails });
     }
-
     return result;
   }, []);
 
@@ -208,7 +177,6 @@ export function TemplatesPage() {
     try {
       const { workout_id } = await templatesApi.start(startingTemplate.id);
       setStartingTemplate(null);
-      // Navigate to workout logger (placeholder for now)
       navigate(`/workouts/${workout_id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to start workout");
@@ -217,44 +185,34 @@ export function TemplatesPage() {
   };
 
   return (
-    <div
-      className="flex flex-col h-full"
-      style={{ paddingTop: "env(safe-area-inset-top)" }}
-    >
+    <div className="flex flex-col h-full" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       <PageHeader
         title="Templates"
         right={
-          <button onClick={() => fullSync(true)} disabled={isSyncing}
-            className="text-xs text-blue border border-blue/30 rounded-lg px-3 py-1.5 active:opacity-70">
+          <button
+            onClick={() => fullSync(true)}
+            disabled={isSyncing}
+            className="text-xs text-blue border border-blue/30 rounded-lg px-3 py-1.5 active:opacity-70"
+          >
             {isSyncing ? "Syncing…" : "↻"}
           </button>
         }
       />
 
-      {/* Error */}
       {error && (
         <div className="mx-4 mb-3 bg-danger/10 border border-danger/30 rounded-xl px-4 py-3 text-danger text-sm">
           {error}
         </div>
       )}
 
-      {/* Template list */}
       <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-3">
         {templates === undefined ? (
-          <div className="flex items-center justify-center pt-16">
-            <p className="text-secondary text-sm">Loading…</p>
-          </div>
+          <p className="text-secondary text-sm text-center pt-16">Loading…</p>
         ) : templates.length === 0 ? (
           <div className="flex flex-col items-center justify-center pt-16 text-center">
             <p className="text-primary font-medium">No templates yet</p>
-            <p className="text-secondary text-sm mt-1">
-              Create templates on the web app, then sync here.
-            </p>
-            <button
-              onClick={() => fullSync(true)}
-              disabled={isSyncing}
-              className="btn-primary mt-4 px-6"
-            >
+            <p className="text-secondary text-sm mt-1">Create templates on the web app, then sync here.</p>
+            <button onClick={() => fullSync(true)} disabled={isSyncing} className="btn-primary mt-4 px-6">
               {isSyncing ? "Syncing…" : "↻ Sync now"}
             </button>
           </div>
@@ -271,13 +229,12 @@ export function TemplatesPage() {
         )}
       </div>
 
-      {/* Start confirmation sheet */}
       {startingTemplate && (
         <StartSheet
           template={startingTemplate}
+          loading={starting}
           onConfirm={handleStart}
           onCancel={() => { setStartingTemplate(null); setStarting(false); }}
-          loading={starting}
         />
       )}
     </div>
