@@ -70,7 +70,7 @@ function SetRow({ set, onUpdate, timer }: {
         </span>
         <button
           onClick={() => onUpdate(set.id, { isDone: !set.isDone })}
-          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+          className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
             set.isDone ? "bg-success text-white" : "border border-border text-secondary"
           }`}
         >
@@ -145,12 +145,12 @@ function SetRow({ set, onUpdate, timer }: {
       </div>
 
       {/* Rest timer */}
-      <div className="flex items-center gap-3 px-4 py-2 border-t border-border/50">
-        <span className="text-secondary text-xs">Rest</span>
-        <span className="text-primary font-mono text-sm font-semibold">{timer.fmt(set.id)}</span>
+      <div className="flex items-center gap-4 px-4 py-3 border-t border-border/50">
+        <span className="text-secondary text-sm font-medium">Rest</span>
+        <span className="text-primary font-mono text-lg font-bold">{timer.fmt(set.id)}</span>
         <button
           onClick={() => isRunning ? timer.resetTimer(set.id) : timer.startTimer(set.id)}
-          className={`px-3 py-1 rounded-lg text-xs font-semibold ${
+          className={`px-6 py-2.5 rounded-xl text-sm font-semibold ${
             isRunning ? "bg-warning/20 text-warning" : "bg-blue text-white"
           }`}
         >
