@@ -171,7 +171,7 @@ function ExercisePage({ exerciseId, sets, onUpdate, timer }: {
   timer: ReturnType<typeof useRestTimer>;
 }) {
   const exercise = useLiveQuery(() => db.exercises.get(exerciseId), [exerciseId]);
-  const { serverUrl } = useAppStore.getState();
+  const serverUrl = useAppStore(s => s.serverUrl) ?? "";
   const doneSets = sets.filter(s => s.isDone).length;
 
   // gifUrl may be null, empty string "", relative (/static/...) or absolute (https://...)
@@ -211,6 +211,8 @@ export function WorkoutLoggerPage() {
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [earlyWarningDismissed, setEarlyWarningDismissed] = useState(false);
+  // Capture original startedAt before useEffect updates it to now
+  const originalStartedAt = useRef<string | null>(null);
   const timer = useRestTimer();
 
   const workout = useLiveQuery(() => id ? db.workouts.get(id) : undefined, [id]);
@@ -229,6 +231,11 @@ export function WorkoutLoggerPage() {
     if (workout && !workout.endedAt && id) {
       const now = Date.now();
       const startTime = new Date(workout.startedAt).getTime();
+
+      // Capture original date BEFORE updating — used for early start warning
+      if (originalStartedAt.current === null) {
+        originalStartedAt.current = workout.startedAt;
+      }
 
       // If workout was scheduled for a future date, update startedAt to now
       if (startTime > now) {
@@ -299,9 +306,9 @@ export function WorkoutLoggerPage() {
         <div className="h-full bg-blue transition-all" style={{ width: totalSets > 0 ? `${(doneSets / totalSets) * 100}%` : "0%" }} />
       </div>
 
-      {/* Early start warning */}
-      {!earlyWarningDismissed && workout && (() => {
-        const scheduledDate = new Date(workout.startedAt);
+      {/* Early start warning — uses original scheduled date before it was reset to now */}
+      {!earlyWarningDismissed && originalStartedAt.current && (() => {
+        const scheduledDate = new Date(originalStartedAt.current!);
         const today = new Date();
         scheduledDate.setHours(0, 0, 0, 0);
         today.setHours(0, 0, 0, 0);
@@ -311,7 +318,7 @@ export function WorkoutLoggerPage() {
           <div className="flex-1">
             <p className="text-warning text-sm font-semibold">⚠️ Starting early</p>
             <p className="text-secondary text-xs mt-0.5">
-              This workout was scheduled for {new Date(workout.startedAt).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}.
+              This workout was scheduled for {new Date(originalStartedAt.current!).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}.
               Your start time has been updated to now.
             </p>
           </div>

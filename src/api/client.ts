@@ -81,6 +81,14 @@ export const exercisesApi = {
 
 export const statsApi = {
   dashboard: () => request<ServerDashboard>("/stats/dashboard"),
+  upsertDaily: (body: {
+    date: string;
+    steps?: number | null;
+    active_calories?: number | null;
+    resting_hr?: number | null;
+    sleep_seconds?: number | null;
+    active_minutes?: number | null;
+  }) => request<{ id: string }>("/stats/daily", { method: "POST", body: JSON.stringify(body) }),
 };
 
 // ─── Server types ─────────────────────────────────────────────────────────────
