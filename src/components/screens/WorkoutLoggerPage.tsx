@@ -44,7 +44,7 @@ function useElapsed(startedAt: string | null) {
   useEffect(() => {
     if (!startedAt) return;
     const base = new Date(startedAt).getTime();
-    const tick = () => setSecs(Math.floor((Date.now() - base) / 1000));
+    const tick = () => setSecs(Math.max(0, Math.floor((Date.now() - base) / 1000)));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
@@ -174,8 +174,9 @@ function ExercisePage({ exerciseId, sets, onUpdate, timer }: {
   const { serverUrl } = useAppStore.getState();
   const doneSets = sets.filter(s => s.isDone).length;
 
-  // gifUrl may be relative (e.g. /static/gifs/...) — prepend server URL if so
-  const gifSrc = exercise?.gifUrl
+  // gifUrl may be null, empty string "", relative (/static/...) or absolute (https://...)
+  // Empty string must be treated as null — otherwise we'd load the server root as an image
+  const gifSrc = exercise?.gifUrl && exercise.gifUrl.trim()
     ? exercise.gifUrl.startsWith("http")
       ? exercise.gifUrl
       : `${serverUrl}${exercise.gifUrl}`
@@ -209,6 +210,7 @@ export function WorkoutLoggerPage() {
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [earlyWarningDismissed, setEarlyWarningDismissed] = useState(false);
   const timer = useRestTimer();
 
   const workout = useLiveQuery(() => id ? db.workouts.get(id) : undefined, [id]);
@@ -225,6 +227,16 @@ export function WorkoutLoggerPage() {
 
   useEffect(() => {
     if (workout && !workout.endedAt && id) {
+      const now = Date.now();
+      const startTime = new Date(workout.startedAt).getTime();
+
+      // If workout was scheduled for a future date, update startedAt to now
+      if (startTime > now) {
+        const nowIso = new Date().toISOString();
+        db.workouts.update(id, { startedAt: nowIso, dirty: true });
+        workoutsApi.update(id, { started_at: nowIso }).catch(console.warn);
+      }
+
       scheduleWorkoutNotification(id, workout.title ?? "Workout in progress");
     }
   }, [workout?.id, workout?.endedAt, id]);
@@ -286,6 +298,26 @@ export function WorkoutLoggerPage() {
       <div className="h-1 bg-border shrink-0">
         <div className="h-full bg-blue transition-all" style={{ width: totalSets > 0 ? `${(doneSets / totalSets) * 100}%` : "0%" }} />
       </div>
+
+      {/* Early start warning */}
+      {!earlyWarningDismissed && workout && (() => {
+        const scheduledDate = new Date(workout.startedAt);
+        const today = new Date();
+        scheduledDate.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        return scheduledDate > today;
+      })() && (
+        <div className="mx-4 mt-3 bg-warning/10 border border-warning/40 rounded-xl px-4 py-3 flex items-start justify-between gap-3 shrink-0">
+          <div className="flex-1">
+            <p className="text-warning text-sm font-semibold">⚠️ Starting early</p>
+            <p className="text-secondary text-xs mt-0.5">
+              This workout was scheduled for {new Date(workout.startedAt).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}.
+              Your start time has been updated to now.
+            </p>
+          </div>
+          <button onClick={() => setEarlyWarningDismissed(true)} className="text-secondary text-lg active:opacity-70 shrink-0">×</button>
+        </div>
+      )}
 
       {/* Exercise indicators */}
       {exerciseIds.length > 1 && (

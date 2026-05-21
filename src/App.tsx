@@ -3,8 +3,10 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { Preferences } from "@capacitor/preferences";
+import { LocalNotifications } from "@capacitor/local-notifications";
 import { useAppStore } from "@/store/appStore";
 import { deltaSync } from "@/sync/syncService";
+import { isHealthConnectAvailable } from "@/health/healthService";
 import { LoginPage } from "@/components/screens/LoginPage";
 import { PermissionsSetupPage } from "@/components/screens/PermissionsSetupPage";
 import { TabLayout } from "@/components/layout/TabLayout";
@@ -20,6 +22,25 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 1000 * 60 * 5, retry: 1 } },
 });
 
+async function permissionsAlreadyGranted(): Promise<boolean> {
+  try {
+    // Check notifications
+    const notifStatus = await LocalNotifications.checkPermissions();
+    if (notifStatus.display !== "granted") return false;
+
+    // Check Health Connect if available
+    const hcAvailable = await isHealthConnectAvailable();
+    if (!hcAvailable) return true; // HC not available — nothing to grant
+
+    // If HC is available, we can't programmatically check HC permissions
+    // so just check if we've ever requested them
+    const { value } = await Preferences.get({ key: "magni_permissions_requested" });
+    return value === "true";
+  } catch {
+    return false;
+  }
+}
+
 export function App() {
   const hydrate = useAppStore(s => s.hydrate);
   const { token, isLoading } = useAppStore();
@@ -31,10 +52,15 @@ export function App() {
       await hydrate();
       await SplashScreen.hide();
 
-      // Check if permissions setup has been shown before
-      const { value } = await Preferences.get({ key: "magni_permissions_requested" });
-      if (!value && useAppStore.getState().token) {
-        setShowPermissions(true);
+      const { token: tok } = useAppStore.getState();
+      if (tok) {
+        // Show permissions setup if we haven't run it yet OR if permissions aren't granted
+        const alreadyGranted = await permissionsAlreadyGranted();
+        if (!alreadyGranted) {
+          // Clear the flag so setup page will fire permissions again
+          await Preferences.remove({ key: "magni_permissions_requested" });
+          setShowPermissions(true);
+        }
       }
 
       setReady(true);
@@ -44,11 +70,8 @@ export function App() {
 
   if (!ready || isLoading) return null;
 
-  // Show permissions setup on first authenticated launch
   if (showPermissions && token) {
-    return (
-      <PermissionsSetupPage onDone={() => setShowPermissions(false)} />
-    );
+    return <PermissionsSetupPage onDone={() => setShowPermissions(false)} />;
   }
 
   return (
