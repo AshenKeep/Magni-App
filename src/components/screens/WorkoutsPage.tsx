@@ -118,10 +118,28 @@ function TemplatePickerModal({ day, onClose, onScheduled }: {
     setScheduling(templateId);
     try {
       const { workout_id } = await templatesApi.start(templateId);
-      // Set the workout to the selected day (plan ahead)
+
+      // Build the planned date at 9am on the selected day
       const plannedStart = new Date(day);
-      plannedStart.setHours(9, 0, 0, 0); // Default 9am
-      await db.workouts.update(workout_id, { startedAt: plannedStart.toISOString(), dirty: true });
+      plannedStart.setHours(9, 0, 0, 0);
+      const plannedIso = plannedStart.toISOString();
+
+      // Update server with correct date
+      await workoutsApi.update(workout_id, { started_at: plannedIso });
+
+      // Put into local DB (use put not update — record may not exist yet)
+      await db.workouts.put({
+        id: workout_id,
+        title: null,
+        startedAt: plannedIso,
+        endedAt: null,
+        durationSeconds: null,
+        notes: null,
+        isLocal: false,
+        dirty: false,
+        syncedAt: new Date().toISOString(),
+      });
+
       onScheduled();
     } catch (e) {
       console.error("Failed to schedule template:", e);

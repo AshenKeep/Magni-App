@@ -5,6 +5,7 @@ import { db, type WorkoutSet } from "@/db";
 import { workoutsApi } from "@/api/client";
 import { queueMutation } from "@/sync/syncService";
 import { scheduleWorkoutNotification, cancelWorkoutNotification } from "@/services/notificationService";
+import { useAppStore } from "@/store/appStore";
 
 // ─── Rest timer hook ──────────────────────────────────────────────────────────
 
@@ -170,13 +171,21 @@ function ExercisePage({ exerciseId, sets, onUpdate, timer }: {
   timer: ReturnType<typeof useRestTimer>;
 }) {
   const exercise = useLiveQuery(() => db.exercises.get(exerciseId), [exerciseId]);
+  const { serverUrl } = useAppStore.getState();
   const doneSets = sets.filter(s => s.isDone).length;
+
+  // gifUrl may be relative (e.g. /static/gifs/...) — prepend server URL if so
+  const gifSrc = exercise?.gifUrl
+    ? exercise.gifUrl.startsWith("http")
+      ? exercise.gifUrl
+      : `${serverUrl}${exercise.gifUrl}`
+    : null;
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3">
       <div className="flex items-center gap-3 mb-4">
-        {exercise?.gifUrl ? (
-          <img src={exercise.gifUrl} alt={exercise.name} className="w-12 h-12 rounded-lg object-cover bg-muted" />
+        {gifSrc ? (
+          <img src={gifSrc} alt={exercise?.name} className="w-12 h-12 rounded-lg object-cover bg-muted" />
         ) : (
           <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center text-2xl">🏋️</div>
         )}
