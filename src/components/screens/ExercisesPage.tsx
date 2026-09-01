@@ -15,8 +15,7 @@ export function ExercisesPage() {
   const [muscle, setMuscle] = useState("all");
 
   const exercises = useLiveQuery(async () => {
-    let q = db.exercises.orderBy("name");
-    const all = await q.toArray();
+    const all = await db.exercises.orderBy("name").toArray();
     return all.filter(e => {
       const matchSearch = !search || e.name.toLowerCase().includes(search.toLowerCase());
       const matchMuscle = muscle === "all" || (e.muscleGroup || "").toLowerCase() === muscle;

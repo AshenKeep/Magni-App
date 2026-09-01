@@ -16,7 +16,6 @@ import { db } from "@/db";
 import { statsApi } from "@/api/client";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const HC = HealthConnect as any;
 
 const READ_TYPES = ["Steps", "HeartRate", "SleepSession", "ActiveCaloriesBurned"];
